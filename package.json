@@ -1,6 +1,6 @@
 {
     "name": "@jotiotech/node-red-sia-premise-device",
-    "version": "0.1.0",
+    "version": "0.2.0",
 		"engines": {
 			"node" : ">=12.0.0"
 		},
@@ -13,8 +13,8 @@
     "node-red": {
 				"version" : ">=1.0.0",
         "nodes": {
-						"SIA_device": "SIA_device.js",
-						"SIA_server" : "SIA_server.js"
+						"SIA_device": "src/SIA_device.js",
+						"SIA_server" : "src/SIA_server.js"
 				}
     }
 }
