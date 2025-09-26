@@ -1,0 +1,37 @@
+<script type="text/javascript">
+	RED.nodes.registerType('SIA-device', {
+		category: 'common',
+		color: '#0B99D8',
+		defaults: {
+			name: { value: "" },
+			server: { value: "", type: "SIA-server", required: true }, // This will
+		},
+		align: 'left',
+		icon: "icon.png",
+		inputs: 1,
+		outputs: 0,
+		label: function () {
+			return this.name || "SIA Device";
+		},
+
+	});
+
+</script>
+
+<style>
+
+.input-button-wrap>input {
+	width: 100% !important;
+}
+</style>
+
+<script type="text/x-red" data-template-name="BJ-parser">
+    <div class="form-row">
+        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-server">SIA Server</label>
+        <input type="text" id="node-input-server" placeholder="Select SIA Server">
+    </div>
+</script>

@@ -1,0 +1,47 @@
+<script type="text/javascript">
+    RED.nodes.registerType('SIA-server', {
+        category: 'config',
+        defaults: {
+            name: { value: "" },
+            receiverIP: { value: "", required: true },
+            receiverPort: { value: "", required: true },
+            siaAccount: { value: "", required: true },
+            siaPassword: { value: "", required: true },
+            encryptionEnabled: { value: false },
+            passwordInHex: { value: false },
+        },
+        label: function () {
+            return this.name || "SIA Server";
+        },
+    });
+</script>
+<script type="text/x-red" data-template-name="SIA-server">
+    <div class="form-row">
+        <label for="node-config-input-name"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-receiverIP">Receiver IP</label>
+        <input type="text" id="node-config-input-receiverIP" placeholder="Receiver IP">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-receiverPort">Receiver Port</label>
+        <input type="text" id="node-config-input-receiverPort" placeholder="Receiver Port">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-siaAccount">SIA Account</label>
+        <input type="text" id="node-config-input-siaAccount" placeholder="SIA Account">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-siaPassword">SIA Password</label>
+        <input type="password" id="node-config-input-siaPassword" placeholder="SIA Password">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-encryptionEnabled">Encryption Enabled</label>
+        <input type="checkbox" id="node-config-input-encryptionEnabled" style="display: inline-block; width: auto; vertical-align: middle;">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-passwordInHex">Password in Hex</label>
+        <input type="checkbox" id="node-config-input-passwordInHex" style="display: inline-block; width: auto; vertical-align: middle;">
+    </div>
+</script>
