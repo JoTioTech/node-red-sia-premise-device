@@ -23,15 +23,22 @@
 .input-button-wrap>input {
 	width: 100% !important;
 }
+select {
+	width: 100% !important;
+}
+.editor-button {
+	height: 30px;
+	padding: 0 10px;
+}
 </style>
 
-<script type="text/x-red" data-template-name="BJ-parser">
-    <div class="form-row">
-        <label for="node-input-name"><i class="icon-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
-    </div>
-    <div class="form-row">
-        <label for="node-input-server">SIA Server</label>
-        <input type="text" id="node-input-server" placeholder="Select SIA Server">
-    </div>
+<script type="text/x-red" data-template-name="SIA-device">
+	<div class="form-row">
+				<label for="node-input-name"><i class="icon-tag"></i> Name</label>
+				<input type="text" id="node-input-name" placeholder="Name">
+		</div>
+	<div class="form-row">
+		<label for="node-input-server"><i class="icon-globe"></i> <span data-i18n="modbus-contrib.label.server"></span></label>
+		<input type="text" id="node-input-server">
+	</div>
 </script>
