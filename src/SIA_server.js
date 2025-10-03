@@ -16,6 +16,22 @@ module.exports = function (RED) {
 		this.encryptionKey = config.encryptionKey || '';
 		this.encryptionEnabled = this.encryptionKey.length > 0;
 
+		switch (this.encryptionKey.length) {
+				case 32:
+						this.encryptionType = 'aes-128-cbc';
+						break;
+				case 48:
+						this.encryptionType = 'aes-192-cbc';
+						break;
+				case 64:
+						this.encryptionType = 'aes-256-cbc';
+						break;
+				default:
+						return undefined;
+		}
+
+
+
 		const client = new Net.Socket();
 
 		process.on('uncaughtException', error => {
@@ -81,6 +97,7 @@ module.exports = function (RED) {
 				receiverNumber: this.receiverNumber,
 				encryptionKey: this.encryptionKey,
 				encryptionEnabled: this.encryptionEnabled,
+				encryptionType: this.encryptionType,
 			};
 		};
 
