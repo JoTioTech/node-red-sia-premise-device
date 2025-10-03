@@ -15,12 +15,8 @@
 			name: { value: "" },
 			receiverHost: { value: "", required: true },
 			receiverPort: { value: "", required: true },
-			receiverNumber : { value: "", required: true },
-			// siaAccount: { value: "", required: true },
-			// siaAccountPrefix: { value: "", required: true },
-			encryptionKey: { value: "", required: true },
-			encryptionEnabled: { value: false },
-			passwordInHex: { value: false },
+			receiverNumber : { value: ""},
+			encryptionKey: { value: ""},
 		},
 		label: function () {
 			return this.name || 'sia-server@' + this.receiverHost;
@@ -29,9 +25,16 @@
 		oneditprepare: function () {
 			let previous = null;
 
-			if( this.encryptionKey != 32 && this.encryptionKey != 48 && this.encryptionKey != 64 ){ // between 3 and 16 characters
-				Node.error('Encryption key must be 128, 192, or 256 bits long (16, 24, or 32 characters)');
+
+			if(this.encryptionKey == null){
+				this.encryptionKey = "";
 			}
+
+			let allowedLengths = [0, 32, 48, 64];
+			if(!allowedLengths.includes(this.encryptionKey.length)){
+				Node.error('Encryption key must be empty or 128, 192, 256 bits long in HEX');
+			}
+
 			if(!/^[0-9A-Fa-f]+$/.test(this.encryptionKey)){ // hexadecimal characters only
 				Node.error('Encryption key must be in hexadecimal characters only (0-9, A-F)');
 			}
@@ -64,25 +67,9 @@
 				<label for="node-config-input-receiverNumber">Receiver Number</label>
 				<input type="number" id="node-config-input-receiverNumber" placeholder="Receiver Number">
 		</div>
-		<!-- <div class="form-row"> -->
-		<!-- 		<label for="node-config-input-siaAccount">SIA Account</label> -->
-		<!-- 		<input type="text" id="node-config-input-siaAccount" placeholder="SIA Account"> -->
-		<!-- </div> -->
-		<!-- <div class="form-row"> -->
-		<!-- 		<label for="node-config-input-siaAccountPrefix">SIA Account Prefix</label> -->
-		<!-- 		<input type="text" id="node-config-input-siaAccountPrefix" placeholder="SIA Account Prefix (empty for none)"> -->
-		<!-- </div> -->
 		<div class="form-row">
-				<label for="node-config-input-encryptionKey">SIA Password</label>
+				<label for="node-config-input-encryptionKey">Encryption Key</label>
 				<input type="password" id="node-config-input-encryptionKey" placeholder="SIA Password">
-		</div>
-		<div class="form-row">
-				<label for="node-config-input-encryptionEnabled">Encryption Enabled</label>
-				<input type="checkbox" id="node-config-input-encryptionEnabled" style="display: inline-block; width: auto; vertical-align: middle;">
-		</div>
-		<div class="form-row">
-				<label for="node-config-input-passwordInHex">Password in Hex</label>
-				<input type="checkbox" id="node-config-input-passwordInHex" style="display: inline-block; width: auto; vertical-align: middle;">
 		</div>
 </script>
 

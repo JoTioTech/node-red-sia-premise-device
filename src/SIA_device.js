@@ -95,7 +95,28 @@ module.exports = function (RED) {
 				// generate byte array
 				console.log('Padding needed:', paddingNeeded, 'Generated padding:', padding);
 			}
+		}
 
+		function validateHexString(str, strName, minLength, maxLength){
+			if(str.length < minLength || str.length > maxLength){
+				console.error(`${strName} must be between ${minLength} and ${maxLength} characters long`);
+				return false;
+			}
+			if(!/^[0-9A-Fa-f]+$/.test(str)){
+				console.error(`${strName} must be hexadecimal characters only (0-9, A-F)`);
+				return false;
+			}
+			return true;
+		}
+
+		function iterateMsgCount(id){
+			if(!deviceMap.has(id)){
+				deviceMap.set(id, 1);
+			}else{
+				let count = deviceMap.get(id);
+				count = (count % 9999) + 1; // wrap around at 999
+				deviceMap.set(id, count);
+			}
 		}
 
 		// utf8toWin1252("a test ñ");
@@ -105,130 +126,78 @@ module.exports = function (RED) {
 			// const payload = message.payload;
 
 			let payload = {
-				"events" : [
-					{
-						"CSD": "FA",
-						"new" : true,
-						"zone" : 2,
-					}
-				]
+				"account" : "AABBCC",
+				"accountPrefix" : "0",
 
 			}
 
-			payload = {
-				"events" : [
-					{
-						"group" : 0
-					}
-				]
-			}
-			const deviceAccount = message.account;
-			const deviceAccountPrefix = message.accountPrefix || '0';
+			const deviceAccount = payload.account;
+			const deviceAccountPrefix = payload.accountPrefix || '0';
 
 			// INPUT VALIDATION
 
-			if(deviceAccount.length < 3 || deviceAccount.length > 16){ // between 3 and 16 characters
-				this.error('Device account must be between 3 and 16 characters long');
-				return;
-			}
-			if(!/^[0-9A-Fa-f]+$/.test(deviceAccount)){ // hexadecimal characters only
-				this.error('Device account must be hexadecimal characters only (0-9, A-F)');
-				return;
-			}
-			if(deviceAccount.length < 1 || deviceAccount.length > 6){ // between 1 and 6 characters
-				this.error('Device account must be between 3 and 16 characters long');
-				return;
-			}
-			if(!/^[0-9A-Fa-f]+$/.test(deviceAccountPrefix)){ // hexadecimal characters only
-				this.error('Device account prefix must be "L" followed by 1 to 6 digits (e.g. L0, L123456)');
-				return;
-			}
+			if(!validateHexString(deviceAccount, 'Device account', 3, 16)) return;
+			if(!validateHexString(deviceAccountPrefix, 'Device account prefix', 1, 6)) return;
+			if(!validateHexString(siaConfig.receiverNumber, 'Receiver number', 0, 6)) return;
+
+			const	deviceIdentifier = 'L'+ deviceAccountPrefix + '#' + deviceAccount;
+
+			iterateMsgCount(deviceIdentifier);
 
 
-
-			// PAYLOAD CREATION
-
-			// deviceAccountprefix must be L followed by 1-6 digits
-			// deviceAccount must be # followed by 3-16 HEX digits
-
-			const deviceIdentifier = 'L'+ deviceAccountPrefix + '#' + deviceAccount;
-
-			if(!deviceMap.has(deviceIdentifier)){
-				deviceMap.set(deviceIdentifier, 1);
-			}else{
-				let count = deviceMap.get(deviceIdentifier);
-				count = (count % 9999) + 1; // wrap around at 999
-				deviceMap.set(deviceIdentifier, count);
-			}
-
-
-
-      // <"id"><seq><Rrcvr><Lpref><#acct>[ (ends before first data field)
-			let messageBodyStart = '"';
-			if(siaConfig.encryptionEnabled){
+      // PART: <"id"><seq><Rrcvr><Lpref><#acct>[
+			let messageBodyStart = '"'; // <"id"><seq><Rrcvr><Lpref><#acct>[
+			if(siaConfig.encryptionEnabled)
 				messageBodyStart += '*';
-			}
 
 			messageBodyStart += 'SIA-DCS"' // ID placeholder
 			messageBodyStart += deviceMap.get(deviceIdentifier).toString().padStart(4, '0'); // message sequence number
+			if(siaConfig.receiverNumber.length >0)
+				messageBodyStart += 'R'+siaConfig.receiverNumber;
 			messageBodyStart += deviceIdentifier;
 			messageBodyStart += '[';
 			let timestamp = generateTimestamp();
 
 
-
-			// messageBody += 0x00 // Padding placeholder
-			// messageBody += '|';
-
-			let messageBodyData = '#'+deviceAccount + '|'; // before this there might be padding
+			// PART: #<acct>|<data>
+			let messageBodyData = '#'+deviceAccount + '|';  // <pad>|...data...][x…data…]
 
 			// data format
 			// (N)(id-number)(DCS)(zone)
 			// there's also a format of group-zone
 
+			messageBodyData += "NFA129";
 
 
 
-
-
-
-
-			// check if we need to pad the payload
-
-
-
-
-
-			// PAYLOAD FINALIZATION
-
-
-			/// form message body, pad in case it's needed
-			let messageBody = '';
-
-			if(siaConfig.encryptionEnabled){
-				messageBody += generatePadding(messageBodyData + messageBodyData + timestamp);
-			}
+			// PART: ]<timestamp>, finalization of body
+			let messageBody = ''; // <"id"><seq><Rrcvr><Lpref><#acct>[<pad>|...data...][x…data…]<timestamp>
 			messageBody += messageBodyStart;
 			messageBody += messageBodyData;
 			messageBody += ']'; // end of data fields
 			// optional extended data
 			messageBody += timestamp;
 
-			if(siaConfig.encryptionEnabled){
-
+			if(siaConfig.encryptionEnabled){ // everything past [ till <CR> is to be encrypted
+				messageBody = generatePadding(messageBodyData + messageBodyData + timestamp)+messageBody;
 				// encrypt in AES, length depends on key length
 			}
 
 
 
 
-			// creation of final message
+			// Append <LF><crc><>
 			msgCount = ArrayBuffer.from(messageBody).length;
-			let message = 0x0A;
-			message += calculateCRCIBM16(messageBody);
-			message += '0'+msgCount; // Carriage return
-			message += messageBody;
-			message += '\r';
+			let msg = 0x0A; // <LF><crc><0LLL><"id"><seq><Rrcvr><Lpref><#acct>[<pad>|...data...][x…data…]<timestamp><CR>
+			msg += calculateCRCIBM16(messageBody);
+			msg += '0'+msgCount.toString(16).padStart(3, '0'); // Carriage return
+			msg += messageBody;
+			msg += '\r';
+
+			console.log('Final message to send: ', msg);
+
+
+			server.write(msg);
 
 			// this.send(message);
 		});
