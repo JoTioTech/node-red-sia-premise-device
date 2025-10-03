@@ -78,8 +78,6 @@ module.exports = function (RED) {
 
 		this.getSIAConfig = function () {
 			return {
-				// SiaAccount: this.siaAccount,
-				// siaAccountPrefix: this.siaAccountPrefix,
 				receiverNumber: this.receiverNumber,
 				encryptionKey: this.encryptionKey,
 				encryptionEnabled: this.encryptionEnabled,
@@ -87,7 +85,6 @@ module.exports = function (RED) {
 		};
 
 		this.write = function (data) {
-			console.log('Client state - destroyed:', client.destroyed, 'readyState:', client.readyState);
 			if (!client.destroyed && client.readyState == 'open') {
 				console.log('Sending data to SIA server:', data);
 				client.write(data);

@@ -46,6 +46,8 @@ module.exports = function (RED) {
 
 		const siaConfig = server.getSIAConfig();
 		console.log('SIA Config:', siaConfig);
+
+
 		server.connect();
 
 
@@ -55,14 +57,15 @@ module.exports = function (RED) {
 			return tmpBuf.toString('latin1');
 		}
 
-		function calculateCRCIBM16(data){
-			buffer = new Uint8Array(data);
-			let crc = 0x0000;
-			for( const byte of buffer ){
-				crc = crc >>> 8 ^ tableCRC[ ( crc ^ byte ) & 0xff ];
+		function calculateCRCIBM16(str){
+			data = new Buffer.from(str);
+			let len = data.length;
+			let buffer = 0;
+			let crc;
+			while (len--) {
+					crc = ((crc >>> 8) ^ (tableCRC[(crc ^ (data[buffer++])) & 0xff]));
 			}
-			console.log('Calculated CRC-16-IBM: ', crc.toString(16).padStart(4, '0'));
-			return crc;
+			return crc.toString(16).padStart(4, '0').toUpperCase();
 		}
 
 		function generateTimestamp(){
@@ -83,7 +86,7 @@ module.exports = function (RED) {
 		}
 
 		function generatePadding(data){
-			buffer = new Uint8Array(data); // we need to get byte length of the message body, not string length
+			buffer = new Buffer.from(data); // we need to get byte length of the message body, not string length
 			let msgLength = buffer.length.toString(16).toUpperCase().padStart(3, '0');
 
 			let padding = '';
@@ -132,8 +135,9 @@ module.exports = function (RED) {
 
 			let payload = {
 				"account" : "AABBCC",
-				"accountPrefix" : "0"
+				"accountPrefix" : "5678"
 			}
+			siaConfig.receiverNumber = "1234";
 
 			const deviceAccount = payload.account;
 			const deviceAccountPrefix = payload.accountPrefix || '0';
@@ -191,21 +195,24 @@ module.exports = function (RED) {
 
 
 			// Append <LF><crc><>
-			msgCount = messageBody.length; // TODO: this will not work outside of ASCII, this doesn't matter UNLESS support for extended data is added;
+			msgCount = (new Buffer.from(messageBody)).length; // TODO: this will not work outside of ASCII, this doesn't matter UNLESS support for extended data is added;
 
-			let msg = 0x0A; // <LF><crc><0LLL><"id"><seq><Rrcvr><Lpref><#acct>[<pad>|...data...][x…data…]<timestamp><CR>
-			msg += calculateCRCIBM16(messageBody).toString(16).padStart(4, '0'); // CRC is 4 ASCII characters
-			msg += '0'+msgCount.toString(16).padStart(3, '0'); // Carriage return
+			let msg = '\n'; // <LF><crc><0LLL><"id"><seq><Rrcvr><Lpref><#acct>[<pad>|...data...][x…data…]<timestamp><CR>
+			msg += calculateCRCIBM16(messageBody); // CRC is 4 ASCII characters
+			msg += '0'+msgCount.toString(16).toUpperCase().padStart(3, '0'); // Carriage return
 			msg += messageBody;
 			msg += '\r';
 
-			console.log('Final message to send: ', msg);
+			// print message in hex
+			let hexMsg = '';
+			for(let i=0; i<msg.length; i++){
+				hexMsg += msg.charCodeAt(i).toString(16).padStart(2, '0').toUpperCase() + ' ';
+			}
+			console.log('Final message in hex: ', hexMsg);
+
 
 
 			server.write(msg);
-			// server.close();
-
-			// this.send(message);
 		});
 	}
 
