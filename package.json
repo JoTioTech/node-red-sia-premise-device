@@ -1,20 +1,23 @@
 {
     "name": "@jotiotech/node-red-sia-premise-device",
     "version": "0.2.0",
-		"engines": {
-			"node" : ">=12.0.0"
-		},
-		"license": "MIT",
+    "engines": {
+        "node": ">=12.0.0"
+    },
+    "license": "MIT",
     "description": "",
-    "dependencies": {},
+    "dependencies": {
+        "retry": "^0.13.1"
+    },
     "keywords": [
-        "node-red", "parsing"
+        "node-red",
+        "parsing"
     ],
     "node-red": {
-				"version" : ">=1.0.0",
+        "version": ">=1.0.0",
         "nodes": {
-						"SIA_device": "src/SIA_device.js",
-						"SIA_server" : "src/SIA_server.js"
-				}
+            "SIA_device": "src/SIA_device.js",
+            "SIA_server": "src/SIA_server.js"
+        }
     }
 }

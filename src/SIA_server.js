@@ -3,39 +3,77 @@ module.exports = function (RED) {
 	// SOURCE-MAP-REQUIRED
 
 	const Net = require('node:net');
+	const Retry = require('retry');
 
 	function SIAServer(config) {
 		RED.nodes.createNode(this, config);
 
 		this.receiverHost = config.receiverHost;
-		this.receiverPort = Number.parseInt(config.receiverPort) || 5093;
-		this.receiverNumber = config.receiverNumber || "";
+		this.receiverPort = Number.parseInt(config.receiverPort);
+		this.receiverNumber = config.receiverNumber || '';
 		// This.siaAccount = config.siaAccount;
 		// this.siaAccountPrefix = config.siaAccountPrefix || 'L0';
-		this.encryptionKey = config.encryptionKey || "";
+		this.encryptionKey = config.encryptionKey || '';
 		this.encryptionEnabled = this.encryptionKey.length > 0;
 
 		const client = new Net.Socket();
 
-		this.connectClient = function () {
+		process.on('uncaughtException', error => {
+			console.error('Uncaught Exception:', error);
+			client.destroy();
+		});
 
-			if(!client.destroyed && client.readyState == 'open') {
-				// already connected
-				return;
-			}
-			if(!this.receiverHost || !this.receiverPort) {
+		this.connect = function () {
+			// If(!client.destroyed && client.readyState == 'open') {
+			// 	console.log('Already connected to SIA server at ' + this.receiverHost + ':' + this.receiverPort);
+			// 	return;
+			// }
+
+			if (!this.receiverHost || !this.receiverPort) {
 				console.error('Receiver host or port not set');
 				return;
 			}
 
-			console.log('Connecting to SIA server at ' + this.receiverHost + ':' + this.receiverPort);
-			try {
-				client.connect(this.receiverPort, this.receiverHost, function () {
-					console.log('Connected to SIA server at ' + this.receiverHost + ':' + this.receiverPort);
-				});
-			} catch (error) {
-				console.error('Error connecting to SIA server:', error);
-			}
+			console.log('Connecting to SIA server at', this.receiverHost, this.receiverPort);
+
+			const operation = Retry.operation({
+				retries: 5,
+				factor: 2,
+				minTimeout: 1000,
+				maxTimeout: 20_000,
+				randomize: true,
+			});
+
+			const tmpRef = this;
+
+			let errorListener = null;
+
+
+			const connectCallback = () => {
+				console.log('Connected to SIA server at', tmpRef.receiverHost, tmpRef.receiverPort);
+			};
+
+			operation.attempt(currentAttempt => {
+
+				if (errorListener) { // will not be active on first attempt
+					client.off('error', errorListener);
+					client.off('connect', connectCallback);
+				}
+
+				errorListener = error => {
+					console.log(`Connection error: ${error.message}`);
+					if (operation.retry(error)) {
+						console.log(`Retrying connection to SIA server, attempt number: ${currentAttempt}`);
+						return;
+					}
+
+					console.error('Failed to connect to SIA server:', error);
+				};
+
+				client.once('error', errorListener);
+
+				client.connect(tmpRef.receiverPort, tmpRef.receiverHost, connectCallback);
+			});
 		};
 
 		this.getSIAConfig = function () {
@@ -49,7 +87,9 @@ module.exports = function (RED) {
 		};
 
 		this.write = function (data) {
-			if (!client.destroyed && socket.readyState == 'open') {
+			console.log('Client state - destroyed:', client.destroyed, 'readyState:', client.readyState);
+			if (!client.destroyed && client.readyState == 'open') {
+				console.log('Sending data to SIA server:', data);
 				client.write(data);
 			}
 		};

@@ -43,10 +43,11 @@ module.exports = function (RED) {
 
 		// TODO: eventually we should disconnect from the server after each message as there shouldn't be a high volume of messages
 		const server = RED.nodes.getNode(config.server);
-		server.connectClient();
 
 		const siaConfig = server.getSIAConfig();
 		console.log('SIA Config:', siaConfig);
+		server.connect();
+
 
 
 		function utf8toWin1252(str) {
@@ -55,11 +56,12 @@ module.exports = function (RED) {
 		}
 
 		function calculateCRCIBM16(data){
-			buffer = ArrayBuffer.from(data);
+			buffer = new Uint8Array(data);
 			let crc = 0x0000;
 			for( const byte of buffer ){
 				crc = crc >>> 8 ^ tableCRC[ ( crc ^ byte ) & 0xff ];
 			}
+			console.log('Calculated CRC-16-IBM: ', crc.toString(16).padStart(4, '0'));
 			return crc;
 		}
 
@@ -81,7 +83,7 @@ module.exports = function (RED) {
 		}
 
 		function generatePadding(data){
-			buffer = ArrayBuffer.from(data); // we need to get byte length of the message body, not string length
+			buffer = new Uint8Array(data); // we need to get byte length of the message body, not string length
 			let msgLength = buffer.length.toString(16).toUpperCase().padStart(3, '0');
 
 			let padding = '';
@@ -97,19 +99,22 @@ module.exports = function (RED) {
 			}
 		}
 
-		function validateHexString(str, strName, minLength, maxLength){
+
+		function validateHexString(str, strName, minLength, maxLength){ // NOTE LGTM
 			if(str.length < minLength || str.length > maxLength){
 				console.error(`${strName} must be between ${minLength} and ${maxLength} characters long`);
 				return false;
+
 			}
-			if(!/^[0-9A-Fa-f]+$/.test(str)){
+
+			if(str.length !=0 &&  !/^[0-9A-Fa-f]+$/.test(str)){
 				console.error(`${strName} must be hexadecimal characters only (0-9, A-F)`);
 				return false;
 			}
 			return true;
 		}
 
-		function iterateMsgCount(id){
+		function iterateMsgCount(id){ // NOTE LGTM
 			if(!deviceMap.has(id)){
 				deviceMap.set(id, 1);
 			}else{
@@ -127,8 +132,7 @@ module.exports = function (RED) {
 
 			let payload = {
 				"account" : "AABBCC",
-				"accountPrefix" : "0",
-
+				"accountPrefix" : "0"
 			}
 
 			const deviceAccount = payload.account;
@@ -156,7 +160,6 @@ module.exports = function (RED) {
 				messageBodyStart += 'R'+siaConfig.receiverNumber;
 			messageBodyStart += deviceIdentifier;
 			messageBodyStart += '[';
-			let timestamp = generateTimestamp();
 
 
 			// PART: #<acct>|<data>
@@ -166,7 +169,7 @@ module.exports = function (RED) {
 			// (N)(id-number)(DCS)(zone)
 			// there's also a format of group-zone
 
-			messageBodyData += "NFA129";
+			messageBodyData += "NFA129"; // fire zone, 129
 
 
 
@@ -176,6 +179,7 @@ module.exports = function (RED) {
 			messageBody += messageBodyData;
 			messageBody += ']'; // end of data fields
 			// optional extended data
+			let timestamp = generateTimestamp(); // TODO: this should be optional
 			messageBody += timestamp;
 
 			if(siaConfig.encryptionEnabled){ // everything past [ till <CR> is to be encrypted
@@ -187,9 +191,10 @@ module.exports = function (RED) {
 
 
 			// Append <LF><crc><>
-			msgCount = ArrayBuffer.from(messageBody).length;
+			msgCount = messageBody.length; // TODO: this will not work outside of ASCII, this doesn't matter UNLESS support for extended data is added;
+
 			let msg = 0x0A; // <LF><crc><0LLL><"id"><seq><Rrcvr><Lpref><#acct>[<pad>|...data...][x…data…]<timestamp><CR>
-			msg += calculateCRCIBM16(messageBody);
+			msg += calculateCRCIBM16(messageBody).toString(16).padStart(4, '0'); // CRC is 4 ASCII characters
 			msg += '0'+msgCount.toString(16).padStart(3, '0'); // Carriage return
 			msg += messageBody;
 			msg += '\r';
@@ -198,6 +203,7 @@ module.exports = function (RED) {
 
 
 			server.write(msg);
+			// server.close();
 
 			// this.send(message);
 		});
