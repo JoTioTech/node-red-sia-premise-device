@@ -8,30 +8,34 @@ module.exports = function (RED) {
 	function SIAServer(config) {
 		RED.nodes.createNode(this, config);
 
-		this.receiverHost = config.receiverHost;
-		this.receiverPort = Number.parseInt(config.receiverPort);
-		this.receiverNumber = config.receiverNumber || '';
-		// This.siaAccount = config.siaAccount;
-		// this.siaAccountPrefix = config.siaAccountPrefix || 'L0';
-		this.encryptionKey = config.encryptionKey || '';
-		this.encryptionEnabled = this.encryptionKey.length > 0;
+		const node = this;
 
-		switch (this.encryptionKey.length) {
+		node.receiverHost = config.receiverHost;
+		node.receiverPort = Number.parseInt(config.receiverPort);
+		node.receiverNumber = config.receiverNumber || '';
+		// This.siaAccount = config.siaAccount;
+		// node.siaAccountPrefix = config.siaAccountPrefix || 'L0';
+		node.encryptionKey = config.encryptionKey || '';
+		node.encryptionEnabled = node.encryptionKey.length > 0;
+
+		switch (node.encryptionKey.length) {
 			case 32: {
-				this.encryptionType = 'aes-128-cbc';
+				node.encryptionType = 'aes-128-cbc';
 				break;
 			}
 
 			case 48: {
-				this.encryptionType = 'aes-192-cbc';
+				node.encryptionType = 'aes-192-cbc';
 				break;
 			}
+
 			case 64: {
-				this.encryptionType = 'aes-256-cbc';
+				node.encryptionType = 'aes-256-cbc';
 				break;
 			}
+
 			default: {
-				this.encryptionType = '';
+				node.encryptionType = '';
 			}
 		}
 
@@ -42,18 +46,39 @@ module.exports = function (RED) {
 			client.destroy();
 		});
 
-		this.connect = function () {
+		client.on('data', data => {
+			// Emits to any SIA-device listening via server.on('data', ...)
+			console.log("Received some message", data);
+			node.emit('data', data);
+		});
+
+		client.on('error', error => {
+			console.error('SIA Socket Error:', error.message);
+			node.emit('socketError', error); // Notify devices if needed
+		});
+
+		client.on('connect', () => {
+			node.emit('connected');
+		});
+
+		client.on('close', () => {
+			node.emit('closed');
+		});
+
+		// -------------
+
+		node.connect = function () {
 			// If(!client.destroyed && client.readyState == 'open') {
-			// 	console.log('Already connected to SIA server at ' + this.receiverHost + ':' + this.receiverPort);
+			// 	console.log('Already connected to SIA server at ' + node.receiverHost + ':' + node.receiverPort);
 			// 	return;
 			// }
 
-			if (!this.receiverHost || !this.receiverPort) {
+			if (!node.receiverHost || !node.receiverPort) {
 				console.error('Receiver host or port not set');
 				return;
 			}
 
-			console.log('Connecting to SIA server at', this.receiverHost, this.receiverPort);
+			console.log('Connecting to SIA server at', node.receiverHost, node.receiverPort);
 
 			const operation = Retry.operation({
 				retries: 5,
@@ -63,7 +88,7 @@ module.exports = function (RED) {
 				randomize: true,
 			});
 
-			const temporaryRef = this;
+			const temporaryRef = node;
 
 			let errorListener = null;
 
@@ -93,23 +118,23 @@ module.exports = function (RED) {
 			});
 		};
 
-		this.getSIAConfig = function () {
+		node.getSIAConfig = function () {
 			return {
-				receiverNumber: this.receiverNumber,
-				encryptionKey: this.encryptionKey,
-				encryptionEnabled: this.encryptionEnabled,
-				encryptionType: this.encryptionType,
+				receiverNumber: node.receiverNumber,
+				encryptionKey: node.encryptionKey,
+				encryptionEnabled: node.encryptionEnabled,
+				encryptionType: node.encryptionType,
 			};
 		};
 
-		this.write = function (data) {
+		node.write = function (data) {
 			if (!client.destroyed && client.readyState == 'open') {
 				console.log('Sending data to SIA server:', data);
 				client.write(data);
 			}
 		};
 
-		this.close = function () {
+		node.close = function () {
 			if (!client.destroyed) {
 				client.end();
 			}

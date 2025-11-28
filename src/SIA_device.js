@@ -16,21 +16,8 @@ module.exports = function (RED) {
 		console.log('SIA Config:', siaConfig);
 
 		// Cleanup on close
-		node.on('close', done => {
-			if (server) {
-				server.removeListener('data', dataListener);
-			}
 
-			for (const [key, pending] of pendingMessages.entries()) {
-				if (pending.node === node) {
-					clearTimeout(pending.timeoutTimer);
-					pendingMessages.delete(key);
-				}
-			}
-
-			done();
-		});
-
+		// --- LISTENER FUNCTION ---
 		const dataListener = data => {
 			const response = data.toString();
 			let seq; let type;
@@ -50,11 +37,9 @@ module.exports = function (RED) {
 			type = match[1].replace('*', ''); // "ACK", "DUH", or "NAK"
 			seq = match[2]; // The 4-digit sequence number as a string
 
-			// Handle uncorrelatable NAK (seq 0000), likely for a timestamp error
+			// Handle uncorrectable NAK (seq 0000), likely for a timestamp error
 			if (type === 'NAK' && seq === '0000') {
 				node.warn('Received uncorrelatable NAK (seq 0000). Erroring all pending requests for this node.');
-				// This is a "best effort" based on the protocol.
-				// We will error all pending messages *for this specific node instance*.
 				for (const [key, pending] of pendingMessages.entries()) {
 					if (pending.node === node) {
 						clearTimeout(pending.timeoutTimer);
@@ -62,7 +47,6 @@ module.exports = function (RED) {
 						pendingMessages.delete(key);
 					}
 				}
-
 				return;
 			}
 
@@ -102,6 +86,25 @@ module.exports = function (RED) {
 			}
 		};
 
+		node.on('close', done => {
+			if (server) {
+				server.removeListener('data', dataListener);
+			}
+
+			for (const [key, pending] of pendingMessages.entries()) {
+				if (pending.node === node) {
+					clearTimeout(pending.timeoutTimer);
+					pendingMessages.delete(key);
+				}
+			}
+
+			done();
+		});
+
+		server.connect();
+		server.on('data', dataListener);
+
+		// --- HELPER FUNCTIONS ---
 		function utf8toWin1252(string_) {
 			tmpBuf = Buffer.from(string_, 'utf8');
 			return tmpBuf.toString('latin1');
@@ -195,22 +198,12 @@ module.exports = function (RED) {
 			}
 		}
 
-		// Utf8toWin1252("a test ñ");
-
-		server.connect();
-		server.on('data', dataListener);
-
+		// --- PROCESS NEW MESSAGE ---
 		node.on('input', message => {
 			console.log('-----------------------------------------\n'
 				+ '            MESSAGE START                \n'
 				+ '-----------------------------------------');
-			// Const payload = message.payload;
-
-			const payload = {
-				account: 'AABBCC',
-				accountPrefix: '5678',
-			};
-			// SiaConfig.receiverNumber = "1234";
+			const payload = message.payload;
 
 			const deviceAccount = payload.account;
 			const deviceAccountPrefix = payload.accountPrefix || '0';
@@ -256,8 +249,9 @@ module.exports = function (RED) {
 			// (N)(id-number)(DCS)(zone)
 			// there's also a format of group-zone
 
-			// messageBodyData += "NFA"; //
-			messageBodyData += 'Nri129/FA1234'; //
+			// messageBodyData += "Nri129^FA"; //
+			messageBodyData += payload.body;
+			// messageBodyData += 'Nri129/FA1234'; //
 			// optional extended data can be added here, for example
 
 			// PART: ]<timestamp>, finalization of body
@@ -280,16 +274,16 @@ module.exports = function (RED) {
 			msgCount = (new Buffer.from(messageBody)).length;
 
 			let message_ = '\n'; // <LF><crc><0LLL><"id"><seq><Rrcvr><Lpref><#acct>[<pad>|...data...][x…data…]<timestamp><CR>
-			message_ += calculateCRCIBM16(messageBody); // CRC is 4 ASCII characters
+			const crc = calculateCRCIBM16(messageBody);
+			console.log("Final message CRC: ", crc);
+
+			message_ += crc; // CRC is 4 ASCII characters
 			message_ += '0' + msgCount.toString(16).toUpperCase().padStart(3, '0'); // Carriage return
 			message_ += messageBody;
 			message_ += '\r';
 
-			// Let hexMsg = '';
-			// for(let i=0; i<msg.length; i++){
-			// 	hexMsg += msg.charCodeAt(i).toString(16).padStart(2, '0').toUpperCase() + ' ';
-			// }
-			console.log('Final message in hex:', message_);
+			console.log('Final message:', message_);
+			console.log('Sending message to server');
 
 			pendingMessages.set(seqNumber, {
 				node,
@@ -303,6 +297,7 @@ module.exports = function (RED) {
 							payload: {
 								error: true,
 								status: 'timeout on message',
+								message: message
 							},
 						}]);
 						pendingMessages.delete(seqNumber);
@@ -312,12 +307,15 @@ module.exports = function (RED) {
 
 			node.log(`Sending SIA message seq: ${seqNumber}`);
 			node.status({fill: 'blue', shape: 'dot', text: 'Sent ' + seqNumber});
+
+
 			server.write(message_);
 
 			node.send([{
 				payload: {
 					error: false,
 					status: 'sent message',
+					message: message_
 				},
 			}, null]); // Send to first output
 		});
