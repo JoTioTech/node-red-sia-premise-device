@@ -17,20 +17,23 @@ module.exports = function (RED) {
 		this.encryptionEnabled = this.encryptionKey.length > 0;
 
 		switch (this.encryptionKey.length) {
-				case 32:
-						this.encryptionType = 'aes-128-cbc';
-						break;
-				case 48:
-						this.encryptionType = 'aes-192-cbc';
-						break;
-				case 64:
-						this.encryptionType = 'aes-256-cbc';
-						break;
-				default:
-						return undefined;
+			case 32: {
+				this.encryptionType = 'aes-128-cbc';
+				break;
+			}
+
+			case 48: {
+				this.encryptionType = 'aes-192-cbc';
+				break;
+			}
+			case 64: {
+				this.encryptionType = 'aes-256-cbc';
+				break;
+			}
+			default: {
+				this.encryptionType = '';
+			}
 		}
-
-
 
 		const client = new Net.Socket();
 
@@ -60,18 +63,16 @@ module.exports = function (RED) {
 				randomize: true,
 			});
 
-			const tmpRef = this;
+			const temporaryRef = this;
 
 			let errorListener = null;
 
-
 			const connectCallback = () => {
-				console.log('Connected to SIA server at', tmpRef.receiverHost, tmpRef.receiverPort);
+				console.log('Connected to SIA server at', temporaryRef.receiverHost, temporaryRef.receiverPort);
 			};
 
 			operation.attempt(currentAttempt => {
-
-				if (errorListener) { // will not be active on first attempt
+				if (errorListener) { // Will not be active on first attempt
 					client.off('error', errorListener);
 					client.off('connect', connectCallback);
 				}
@@ -88,7 +89,7 @@ module.exports = function (RED) {
 
 				client.once('error', errorListener);
 
-				client.connect(tmpRef.receiverPort, tmpRef.receiverHost, connectCallback);
+				client.connect(temporaryRef.receiverPort, temporaryRef.receiverHost, connectCallback);
 			});
 		};
 
