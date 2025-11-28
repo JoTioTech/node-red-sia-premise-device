@@ -1,5 +1,3 @@
-// Const { Iconv } = require('iconv');
-
 module.exports = function (RED) {
 	const deviceSeqNumbers = new Map();
 	const crypto = require('node:crypto');
